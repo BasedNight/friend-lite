@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { BleManager, State as BluetoothState } from 'react-native-ble-plx';
-import { OmiConnection, OmiDevice } from 'friend-lite-react-native'; // Assuming this is the correct import for Omi types
+import { OmiConnection, OmiDevice } from '@omi-fork/friend-lite-react-native'; // Assuming this is the correct import for Omi types
 
 interface UseDeviceScanning {
   devices: OmiDevice[];
@@ -140,4 +140,4 @@ export const useDeviceScanning = (
   }, [handleStopScan]);
 
   return { devices, scanning, startScan, stopScan: handleStopScan, error };
-}; 
+};

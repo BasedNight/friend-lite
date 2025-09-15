@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { OmiDevice } from 'friend-lite-react-native';
+import { OmiDevice } from '@omi-fork/friend-lite-react-native';
 
 interface DeviceListItemProps {
   device: OmiDevice;
@@ -104,4 +104,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DeviceListItem; 
+export default DeviceListItem;

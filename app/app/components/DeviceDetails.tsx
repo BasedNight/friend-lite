@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
-import { BleAudioCodec } from 'friend-lite-react-native';
+import { BleAudioCodec } from '@omi-fork/friend-lite-react-native';
 
 interface DeviceDetailsProps {
   // Device Info
@@ -9,12 +9,20 @@ interface DeviceDetailsProps {
   currentCodec: BleAudioCodec | null;
   onGetBatteryLevel: () => void;
   batteryLevel: number;
+  onGetButtonState: () => void;
+  buttonState: number;
 
   // Audio Listener
   isListeningAudio: boolean;
   onStartAudioListener: () => void;
   onStopAudioListener: () => void;
   audioPacketsReceived: number;
+
+  // Button Listener
+  isListeningButton: boolean;
+  onStartButtonListener: () => void;
+  onStopButtonListener: () => void;
+  buttonPacketsReceived: number;
 
   // WebSocket URL for custom backend
   webSocketUrl: string;
@@ -25,6 +33,11 @@ interface DeviceDetailsProps {
   isConnectingAudioStreamer: boolean;
   audioStreamerError: string | null;
 
+  // Custom Button Streamer Status
+  isButtonStreaming: boolean;
+  isConnectingButtonStreamer: boolean;
+  buttonStreamerError: string | null;
+
   // User ID Management  
   userId: string;
   onSetUserId: (userId: string) => void;
@@ -32,6 +45,10 @@ interface DeviceDetailsProps {
   // Audio Listener Retry State
   isAudioListenerRetrying?: boolean;
   audioListenerRetryAttempts?: number;
+
+  // Button Listener Retry State
+  isButtonListenerRetrying?: boolean;
+  buttonListenerRetryAttempts?: number;
 }
 
 export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
@@ -40,6 +57,21 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
   currentCodec,
   onGetBatteryLevel,
   batteryLevel,
+  onGetButtonState,
+  buttonState,
+
+  isListeningButton,
+  onStartButtonListener,
+  onStopButtonListener,
+  buttonPacketsReceived,
+
+  isButtonListenerRetrying,
+  buttonListenerRetryAttempts,
+
+  isButtonStreaming,
+  isConnectingButtonStreamer,
+  buttonStreamerError,
+
   isListeningAudio,
   onStartAudioListener,
   onStopAudioListener,
@@ -83,6 +115,17 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
             <View style={[styles.batteryLevelBar, { width: `${batteryLevel}%` }]} />
             <Text style={styles.batteryLevelText}>{batteryLevel}%</Text>
           </View>
+        </View>
+      )}
+
+      {/* Button State */}
+      <TouchableOpacity style={[styles.button, { marginTop: 15 }]} onPress={onGetButtonState}>
+        <Text style={styles.buttonText}>Get Button State</Text>
+      </TouchableOpacity>
+      {buttonState >= 0 && (
+        <View style={styles.infoContainerSM}>
+          <Text style={styles.infoTitle}>Current Button State:</Text>
+          <Text style={styles.infoValue}>{buttonState}</Text>
         </View>
       )}
 
@@ -141,6 +184,39 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
           </View>
         )}
       </View>
+
+      {/* Button Controls */}
+      <View style={styles.subSection}>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            isListeningButton || isButtonListenerRetrying ? styles.buttonWarning : null,
+            { marginTop: 15 }
+          ]}
+          onPress={isListeningButton || isButtonListenerRetrying ? onStopButtonListener : onStartButtonListener}
+        >
+          <Text style={styles.buttonText}>
+            {isListeningButton ? "Stop Button Listener" :
+             isButtonListenerRetrying ? "Stop Retry" : "Start Button Listener"}
+          </Text>
+        </TouchableOpacity>
+
+        {isButtonListenerRetrying && (
+          <View style={styles.retryContainer}>
+            <Text style={styles.retryText}>
+              🔄 Retrying button listener... (Attempt {buttonListenerRetryAttempts || 0}/10)
+            </Text>
+          </View>
+        )}
+
+        {isListeningButton && (
+          <View style={styles.infoContainerSM}>
+            <Text style={styles.infoTitle}>Button Packets Received:</Text>
+            <Text style={styles.infoValueLg}>{buttonPacketsReceived}</Text>
+          </View>
+        )}
+      </View>
+
 
       {/* Transcription Controls - Entire section REMOVED and replaced by WebSocket URL input */}
       <View style={styles.customStreamerSection}>
@@ -340,4 +416,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default DeviceDetails; 
+export default DeviceDetails;

@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, ScrollView, Platform, FlatList, ActivityIndicator, Alert, Switch, Button, TouchableOpacity, KeyboardAvoidingView } from 'react-native';
-import { OmiConnection } from 'friend-lite-react-native'; // OmiDevice also comes from here
+import { OmiConnection } from '@omi-fork/friend-lite-react-native'; // OmiDevice also comes from here
 import { State as BluetoothState } from 'react-native-ble-plx'; // Import State from ble-plx
 
 // Hooks
@@ -20,6 +20,9 @@ import {
 import { useAudioListener } from './hooks/useAudioListener';
 import { useAudioStreamer } from './hooks/useAudioStreamer';
 import { usePhoneAudioRecorder } from './hooks/usePhoneAudioRecorder';
+
+import { useButtonListener } from './hooks/useButtonListener';
+import { useButtonStreamer } from './hooks/useButtonStreamer';
 
 // Components
 import BluetoothStatusBanner from './components/BluetoothStatusBanner';
@@ -64,7 +67,10 @@ export default function App() {
 
   // Custom Audio Streamer Hook
   const audioStreamer = useAudioStreamer();
-  
+
+  // Custom Button Streamer Hook
+  const buttonStreamer = useButtonStreamer();
+
   // Phone Audio Recorder Hook
   const phoneAudioRecorder = usePhoneAudioRecorder();
   const [isPhoneAudioMode, setIsPhoneAudioMode] = useState<boolean>(false);
@@ -82,9 +88,24 @@ export default function App() {
     () => !!deviceConnection.connectedDeviceId
   );
 
+  const {
+    isListeningButton: isOmiButtonListenerActive,
+    buttonPacketsReceived,
+    startButtonListener: originalStartButtonListener,
+    stopButtonListener: originalStopButtonListener,
+    isRetrying: isButtonListenerRetrying,
+    retryAttempts: buttonListenerRetryAttempts,
+  } = useButtonListener(
+    omiConnection,
+    () => !!deviceConnection.connectedDeviceId
+  );
+
+
   // Refs to hold the current state for onDeviceDisconnect without causing re-memoization
   const isOmiAudioListenerActiveRef = useRef(isOmiAudioListenerActive);
   const isAudioStreamingRef = useRef(audioStreamer.isStreaming);
+  const isOmiButtonListenerActiveRef = useRef(isOmiButtonListenerActive)
+  const isButtonStreamingRef = useRef(buttonStreamer.isStreaming);
 
   useEffect(() => {
     isOmiAudioListenerActiveRef.current = isOmiAudioListenerActive;
@@ -93,6 +114,15 @@ export default function App() {
   useEffect(() => {
     isAudioStreamingRef.current = audioStreamer.isStreaming;
   }, [audioStreamer.isStreaming]);
+
+  useEffect(() => {
+    isOmiButtonListenerActiveRef.current = isOmiButtonListenerActive;
+  }, [isOmiButtonListenerActive]);
+
+  useEffect(() => {
+    isButtonStreamingRef.current = buttonStreamer.isStreaming;
+  }, [buttonStreamer.isStreaming]);
+
 
   // Now define the stable onDeviceConnect and onDeviceDisconnect callbacks
   const onDeviceConnect = useCallback(async () => {
@@ -120,13 +150,21 @@ export default function App() {
       console.log('[App.tsx] Disconnect: Stopping custom audio streaming.');
       audioStreamer.stopStreaming();
     }
+    if (isOmiButtonListenerActiveRef.current) {
+      console.log('[App.tsx] Disconnect: Stopping button listener.');
+      await originalStopButtonListener();
+    }
+    if (isButtonStreamingRef.current) {
+      console.log('[App.tsx] Disconnect: Stopping custom button streaming.');
+      buttonStreamer.stopStreaming();
+    }
     // Also stop phone audio if it's running
     if (phoneAudioRecorder.isRecording) {
       console.log('[App.tsx] Disconnect: Stopping phone audio recording.');
       await phoneAudioRecorder.stopRecording();
       setIsPhoneAudioMode(false);
     }
-  }, [originalStopAudioListener, audioStreamer.stopStreaming, phoneAudioRecorder.stopRecording, phoneAudioRecorder.isRecording, setIsPhoneAudioMode]);
+  }, [originalStopAudioListener, originalStopButtonListener, audioStreamer.stopStreaming, buttonStreamer.stopStreaming, phoneAudioRecorder.stopRecording, phoneAudioRecorder.isRecording, setIsPhoneAudioMode]);
 
   // Initialize Device Connection hook, passing the memoized callbacks
   const deviceConnection = useDeviceConnection(
@@ -294,19 +332,91 @@ export default function App() {
           await audioStreamer.sendAudio(audioBytes);
         }
       });
+
+      // And start OMI button listener
+      await originalStartButtonListener(async (buttonTrigger) => {
+        const wsReadyState = buttonStreamer.getWebSocketReadyState();
+        if (wsReadyState === WebSocket.OPEN && buttonTrigger.length > 0) {
+          await buttonStreamer.sendButton(buttonTrigger);
+        }
+      });
     } catch (error) {
       console.error('[App.tsx] Error starting audio listening/streaming:', error);
       Alert.alert('Error', 'Could not start audio listening or streaming.');
       // Ensure cleanup if one part started but the other failed
       if (audioStreamer.isStreaming) audioStreamer.stopStreaming();
+      if (buttonStreamer.isStreaming) buttonStreamer.stopStreaming();
     }
   }, [originalStartAudioListener, audioStreamer, webSocketUrl, userId, omiConnection, deviceConnection.connectedDeviceId, jwtToken, isAuthenticated]);
+
+  const handleStartButtonListeningAndStreaming = useCallback(async () => {
+    if (!webSocketUrl || webSocketUrl.trim() === '') {
+      Alert.alert('WebSocket URL Required', 'Please enter the WebSocket URL for streaming.');
+      return;
+    }
+    if (!omiConnection.isConnected() || !deviceConnection.connectedDeviceId) {
+      Alert.alert('Device Not Connected', 'Please connect to an OMI device first.');
+      return;
+    }
+
+    try {
+      let finalWebSocketUrl = webSocketUrl.trim();
+
+      // Check if this is the advanced backend (requires authentication) or simple backend
+      const isAdvancedBackend = jwtToken && isAuthenticated;
+
+      if (isAdvancedBackend) {
+        // Advanced backend: include JWT token and device parameters
+        const params = new URLSearchParams();
+        params.append('token', jwtToken);
+
+        if (userId && userId.trim() !== '') {
+          params.append('device_name', userId.trim());
+          console.log('[App.tsx] Using advanced backend with token and device_name:', userId.trim());
+        } else {
+          params.append('device_name', 'phone'); // Default device name
+          console.log('[App.tsx] Using advanced backend with token and default device_name');
+        }
+
+        const separator = webSocketUrl.includes('?') ? '&' : '?';
+        finalWebSocketUrl = `${webSocketUrl}${separator}${params.toString()}`;
+        console.log('[App.tsx] Advanced backend WebSocket URL constructed (token hidden for security)');
+      } else {
+        // Simple backend: use URL as-is without authentication
+        console.log('[App.tsx] Using simple backend without authentication:', finalWebSocketUrl);
+      }
+
+      // Start custom WebSocket streaming first
+      await buttonStreamer.startStreaming(finalWebSocketUrl);
+
+      // Then start OMI button listener
+      await originalStartButtonListener(async (buttonTrigger) => {
+        const wsReadyState = buttonStreamer.getWebSocketReadyState();
+        if (wsReadyState === WebSocket.OPEN && buttonTrigger.length > 0) {
+          await buttonStreamer.sendButton(buttonTrigger);
+        }
+      });
+    } catch (error) {
+      console.error('[App.tsx] Error starting button listening/streaming:', error);
+      Alert.alert('Error', 'Could not start button listening or streaming.');
+      // Ensure cleanup if one part started but the other failed
+      if (buttonStreamer.isStreaming) buttonStreamer.stopStreaming();
+    }
+  }, [originalStartButtonListener, buttonStreamer, webSocketUrl, userId, omiConnection, deviceConnection.connectedDeviceId, jwtToken, isAuthenticated]);
+
 
   const handleStopAudioListeningAndStreaming = useCallback(async () => {
     console.log('[App.tsx] Stopping audio listening and streaming.');
     await originalStopAudioListener();
     audioStreamer.stopStreaming();
   }, [originalStopAudioListener, audioStreamer]);
+
+  const handleStopButtonListeningAndStreaming = useCallback(async () => {
+    console.log('[App.tsx] Stopping button listening and streaming.');
+    await originalStopButtonListener();
+    buttonListener.stopStreaming();
+  }, [originalStopButtonListener, buttonStreamer]);
+
 
   // Phone Audio Streaming Functions
   const handleStartPhoneAudioStreaming = useCallback(async () => {
@@ -349,7 +459,7 @@ export default function App() {
 
       // Start WebSocket streaming first
       await audioStreamer.startStreaming(finalWebSocketUrl);
-      
+
       // Start phone audio recording
       await phoneAudioRecorder.startRecording(async (pcmBuffer) => {
         const wsReadyState = audioStreamer.getWebSocketReadyState();
@@ -391,6 +501,7 @@ export default function App() {
     bleManager,
     disconnectFromDevice: deviceConnection.disconnectFromDevice,
     stopAudioStreaming: audioStreamer.stopStreaming,
+    stopButtonStreaming: buttonStreamer.stopStreaming,
     stopPhoneAudio: phoneAudioRecorder.stopRecording,
   });
 
@@ -401,6 +512,7 @@ export default function App() {
       bleManager,
       disconnectFromDevice: deviceConnection.disconnectFromDevice,
       stopAudioStreaming: audioStreamer.stopStreaming,
+      stopButtonStreaming: buttonStreamer.stopStreaming,
       stopPhoneAudio: phoneAudioRecorder.stopRecording,
     };
   });
@@ -408,7 +520,7 @@ export default function App() {
   // Cleanup only on actual unmount (no dependencies to avoid re-runs)
   useEffect(() => {
     return () => {
-      console.log('App unmounting - cleaning up OmiConnection, BleManager, AudioStreamer, and PhoneAudioRecorder');
+      console.log('App unmounting - cleaning up OmiConnection, BleManager, AudioStreamer, ButtonStreamer, and PhoneAudioRecorder');
       const refs = cleanupRefs.current;
       
       if (refs.omiConnection.isConnected()) {
@@ -418,6 +530,7 @@ export default function App() {
         refs.bleManager.destroy();
       }
       refs.stopAudioStreaming();
+      refs.stopButtonStreaming();
       // Phone audio stopRecording now handles inactive state gracefully
       refs.stopPhoneAudio().catch(err => console.error("Error stopping phone audio in cleanup:", err));
     };
@@ -682,6 +795,19 @@ export default function App() {
               currentCodec={deviceConnection.currentCodec}
               onGetBatteryLevel={deviceConnection.getBatteryLevel}
               batteryLevel={deviceConnection.batteryLevel}
+
+              onGetButtonState={deviceConnection.getButtonState}
+              buttonState={deviceConnection.buttonState}
+              isListeningButton={isOmiButtonListenerActive}
+              onStartButtonListener={handleStartButtonListeningAndStreaming}
+              onStopButtonListener={handleStopButtonListeningAndStreaming}
+              buttonPacketsReceived={buttonPacketsReceived}
+              isButtonListenerRetrying={isButtonListenerRetrying}
+              buttonListenerRetryAttempts={buttonListenerRetryAttempts}
+              isButtonStreaming={buttonStreamer.isStreaming}
+              isConnectingButtonStreamer={buttonStreamer.isConnecting}
+              buttonStreamerError={buttonStreamer.error}
+
               isListeningAudio={isOmiAudioListenerActive}
               onStartAudioListener={handleStartAudioListeningAndStreaming}
               onStopAudioListener={handleStopAudioListeningAndStreaming}

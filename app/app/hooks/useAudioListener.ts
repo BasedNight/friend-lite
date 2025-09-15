@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { OmiConnection } from 'friend-lite-react-native';
+import { OmiConnection } from '@omi-fork/friend-lite-react-native';
 import { Subscription, ConnectionPriority } from 'react-native-ble-plx'; // OmiConnection might use this type for subscriptions
 
 interface UseAudioListener {
@@ -223,4 +223,4 @@ export const useAudioListener = (
     isRetrying,
     retryAttempts,
   };
-}; 
+};

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { OmiConnection, BleAudioCodec, OmiDevice } from 'friend-lite-react-native';
+import { OmiConnection, BleAudioCodec, OmiDevice } from '@omi-fork/friend-lite-react-native';
 
 interface UseDeviceConnection {
   connectedDevice: OmiDevice | null;
@@ -11,6 +11,7 @@ interface UseDeviceConnection {
   disconnectFromDevice: () => Promise<void>;
   getAudioCodec: () => Promise<void>;
   getBatteryLevel: () => Promise<void>;
+  getButtonState: () => Promise<void>;
   connectedDeviceId: string | null;
 }
 
@@ -23,6 +24,7 @@ export const useDeviceConnection = (
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [currentCodec, setCurrentCodec] = useState<BleAudioCodec | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number>(-1);
+  const [buttonState, setButtonState] = useState<number>(-1);
   const [connectedDeviceId, setConnectedDeviceId] = useState<string | null>(null);
 
   const handleConnectionStateChange = useCallback((id: string, state: string) => {
@@ -40,6 +42,7 @@ export const useDeviceConnection = (
         setConnectedDevice(null);
         setCurrentCodec(null);
         setBatteryLevel(-1);
+        setButtonState(-1);
         if (onDisconnect) onDisconnect(); 
     }
   }, [onDisconnect, onConnect]);
@@ -58,6 +61,7 @@ export const useDeviceConnection = (
     setConnectedDevice(null); // Clear previous device details
     setCurrentCodec(null);
     setBatteryLevel(-1);
+    setButtonState(-1);
 
     try {
       const success = await omiConnection.connect(deviceId, handleConnectionStateChange);
@@ -99,6 +103,7 @@ export const useDeviceConnection = (
       setConnectedDeviceId(null);
       setCurrentCodec(null);
       setBatteryLevel(-1);
+      setButtonState(-1);
     }
   }, [omiConnection, onDisconnect]);
 
@@ -144,15 +149,39 @@ export const useDeviceConnection = (
     }
   }, [omiConnection, connectedDeviceId]);
 
+  const getButtonState = useCallback(async () => {
+    if (!omiConnection.isConnected() || !connectedDeviceId) {
+      Alert.alert('Not Connected', 'Please connect to a device first.');
+      return;
+    }
+    try {
+      const state = await omiConnection.getButtonState();
+      setButtonState(state);
+      console.log('Button state:', state);
+    } catch (error) {
+      console.error('Get button state error:', error);
+      if (String(error).includes('not connected')) {
+        setConnectedDevice(null);
+        setConnectedDeviceId(null);
+        Alert.alert('Connection Lost', 'The device appears to be disconnected. Please reconnect.');
+      } else {
+        Alert.alert('Error', `Failed to get button state: ${error}`);
+      }
+    }
+
+  }, [omiConnection, connectedDeviceId]);
+
   return {
     connectedDevice,
     isConnecting,
     currentCodec,
     batteryLevel,
+    buttonState,
     connectToDevice,
     disconnectFromDevice,
     getAudioCodec,
     getBatteryLevel,
+    getButtonState,
     connectedDeviceId
   };
-}; 
+};
