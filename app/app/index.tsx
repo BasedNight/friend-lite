@@ -521,13 +521,13 @@ export default function App() {
       }
 
       // Start WebSocket streaming first
-      await audioStreamer.startStreaming(finalWebSocketUrl);
+      await omiStreamer.startStreaming(finalWebSocketUrl);
 
       // Start phone audio recording
       await phoneAudioRecorder.startRecording(async (pcmBuffer) => {
-        const wsReadyState = audioStreamer.getWebSocketReadyState();
+        const wsReadyState = omiStreamer.getWebSocketReadyState();
         if (wsReadyState === WebSocket.OPEN && pcmBuffer.length > 0) {
-          await audioStreamer.sendAudio(pcmBuffer);
+          await omiStreamer.sendAudio(pcmBuffer);
         }
       });
       
@@ -537,18 +537,18 @@ export default function App() {
       console.error('[App.tsx] Error starting phone audio streaming:', error);
       Alert.alert('Error', 'Could not start phone audio streaming.');
       // Ensure cleanup if one part started but the other failed
-      if (audioStreamer.isStreaming) audioStreamer.stopStreaming();
+      if (omiStreamer.isStreaming) omiStreamer.stopStreaming();
       if (phoneAudioRecorder.isRecording) await phoneAudioRecorder.stopRecording();
       setIsPhoneAudioMode(false);
     }
-  }, [audioStreamer, phoneAudioRecorder, webSocketUrl, userId, jwtToken, isAuthenticated]);
+  }, [omiStreamer, phoneAudioRecorder, webSocketUrl, userId, jwtToken, isAuthenticated]);
 
   const handleStopPhoneAudioStreaming = useCallback(async () => {
     console.log('[App.tsx] Stopping phone audio streaming.');
     await phoneAudioRecorder.stopRecording();
-    audioStreamer.stopStreaming();
+    omiStreamer.stopStreaming();
     setIsPhoneAudioMode(false);
-  }, [phoneAudioRecorder, audioStreamer]);
+  }, [phoneAudioRecorder, omiStreamer]);
 
   const handleTogglePhoneAudio = useCallback(async () => {
     if (isPhoneAudioMode || phoneAudioRecorder.isRecording) {
@@ -873,9 +873,9 @@ export default function App() {
               audioPacketsReceived={audioPacketsReceived}
               webSocketUrl={webSocketUrl}
               onSetWebSocketUrl={handleSetAndSaveWebSocketUrl}
-              isAudioStreaming={audioStreamer.isStreaming}
-              isConnectingAudioStreamer={audioStreamer.isConnecting}
-              audioStreamerError={audioStreamer.error}
+              isAudioStreaming={omiStreamer.isStreaming}
+              isConnectingAudioStreamer={omiStreamer.isConnecting}
+              audioStreamerError={omiStreamer.error}
 
               isListeningButton={isOmiButtonListenerActive}
               onStartButtonListener={handleStartButtonListeningAndStreaming}
@@ -883,9 +883,9 @@ export default function App() {
               buttonPacketsReceived={buttonPacketsReceived}
               isButtonListenerRetrying={isButtonListenerRetrying}
               buttonListenerRetryAttempts={buttonListenerRetryAttempts}
-              isButtonStreaming={buttonStreamer.isStreaming}
-              isConnectingButtonStreamer={buttonStreamer.isConnecting}
-              buttonStreamerError={buttonStreamer.error}
+              isButtonStreaming={omiStreamer.isStreaming}
+              isConnectingButtonStreamer={omiStreamer.isConnecting}
+              buttonStreamerError={omiStreamer.error}
 
               isListeningBattery={isOmiBatteryListenerActive}
               onStartBatteryListener={handleStartBatteryListeningAndStreaming}
