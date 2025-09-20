@@ -24,6 +24,13 @@ interface DeviceDetailsProps {
   onStopButtonListener: () => void;
   buttonPacketsReceived: number;
 
+  // Battery Listener
+  isListeningBattery: boolean;
+  onStartBatteryListener: () => void;
+  onStopBatteryListener: () => void;
+  batteryPacketsReceived: number;
+
+
   // WebSocket URL for custom backend
   webSocketUrl: string;
   onSetWebSocketUrl: (url: string) => void;
@@ -34,6 +41,11 @@ interface DeviceDetailsProps {
   audioStreamerError: string | null;
 
   // Custom Button Streamer Status
+  isButtonStreaming: boolean;
+  isConnectingButtonStreamer: boolean;
+  buttonStreamerError: string | null;
+
+  // Custom Battery Streamer Status
   isButtonStreaming: boolean;
   isConnectingButtonStreamer: boolean;
   buttonStreamerError: string | null;
@@ -76,15 +88,18 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
   onStartAudioListener,
   onStopAudioListener,
   audioPacketsReceived,
-  webSocketUrl,
-  onSetWebSocketUrl,
+
   isAudioStreaming,
   isConnectingAudioStreamer,
   audioStreamerError,
+
+  isAudioListenerRetrying,
+  audioListenerRetryAttempts,
+
+  webSocketUrl,
+  onSetWebSocketUrl,
   userId,
   onSetUserId,
-  isAudioListenerRetrying,
-  audioListenerRetryAttempts
 }) => {
   if (!connectedDeviceId) return null;
 
@@ -153,7 +168,7 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
         )}
       </View>
 
-      {/* Audio Controls */}
+      {/* Streaming Controls */}
       <View style={styles.subSection}>
         <TouchableOpacity
           style={[
@@ -161,11 +176,11 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
             isListeningAudio || isAudioListenerRetrying ? styles.buttonWarning : null, 
             { marginTop: 15 }
           ]}
-          onPress={isListeningAudio || isAudioListenerRetrying ? onStopAudioListener : onStartAudioListener}
+          onPress={isListeningAudio || isAudioListenerRetrying ? [onStopAudioListener, onStopButtonListener, onStopBatteryListener] : [onStartAudioListener, onStartButtonListener, onStartBatteryListener]}
         >
           <Text style={styles.buttonText}>
-            {isListeningAudio ? "Stop Audio Listener" : 
-             isAudioListenerRetrying ? "Stop Retry" : "Start Audio Listener"}
+            {isListeningAudio ? "Stop Streaming" :
+             isAudioListenerRetrying ? "Stop Retry" : "Start Streaming"}
           </Text>
         </TouchableOpacity>
         
@@ -186,36 +201,36 @@ export const DeviceDetails: React.FC<DeviceDetailsProps> = ({
       </View>
 
       {/* Button Controls */}
-      <View style={styles.subSection}>
-        <TouchableOpacity
+      {/* <View style={styles.subSection}>
+          <TouchableOpacity
           style={[
-            styles.button,
-            isListeningButton || isButtonListenerRetrying ? styles.buttonWarning : null,
-            { marginTop: 15 }
+          styles.button,
+          isListeningButton || isButtonListenerRetrying ? styles.buttonWarning : null,
+          { marginTop: 15 }
           ]}
           onPress={isListeningButton || isButtonListenerRetrying ? onStopButtonListener : onStartButtonListener}
-        >
+          >
           <Text style={styles.buttonText}>
-            {isListeningButton ? "Stop Button Listener" :
-             isButtonListenerRetrying ? "Stop Retry" : "Start Button Listener"}
+          {isListeningButton ? "Stop Button Listener" :
+          isButtonListenerRetrying ? "Stop Retry" : "Start Button Listener"}
           </Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {isButtonListenerRetrying && (
+          {isButtonListenerRetrying && (
           <View style={styles.retryContainer}>
-            <Text style={styles.retryText}>
-              🔄 Retrying button listener... (Attempt {buttonListenerRetryAttempts || 0}/10)
-            </Text>
+          <Text style={styles.retryText}>
+          🔄 Retrying button listener... (Attempt {buttonListenerRetryAttempts || 0}/10)
+          </Text>
           </View>
-        )}
+          )}
 
-        {isListeningButton && (
+          {isListeningButton && (
           <View style={styles.infoContainerSM}>
-            <Text style={styles.infoTitle}>Button Packets Received:</Text>
-            <Text style={styles.infoValueLg}>{buttonPacketsReceived}</Text>
+          <Text style={styles.infoTitle}>Button Packets Received:</Text>
+          <Text style={styles.infoValueLg}>{buttonPacketsReceived}</Text>
           </View>
-        )}
-      </View>
+          )}
+          </View> */}
 
 
       {/* Transcription Controls - Entire section REMOVED and replaced by WebSocket URL input */}

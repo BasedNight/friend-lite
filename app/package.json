@@ -14,7 +14,7 @@
     "@react-native-community/netinfo": "^11.4.1",
     "@react-native/virtualized-lists": "^0.80.2",
     "@siteed/expo-audio-studio": "^2.18.1",
-    "@omi-fork/friend-lite-react-native": "^1.0.9",
+    "@omi-fork/friend-lite-react-native": "^1.0.10",
 
     "deprecated-react-native-prop-types": "^5.0.0",
     "expo": "~53.0.9",
